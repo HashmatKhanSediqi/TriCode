@@ -1,0 +1,13 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" width="900" height="340" viewBox="0 0 900 340" fill="none">
+  <g fill="#111111">
+    <circle cx="180" cy="110" r="72"/>
+    <circle cx="112" cy="172" r="72"/>
+    <circle cx="248" cy="172" r="72"/>
+  </g>
+  <circle cx="180" cy="110" r="34" fill="#ffffff"/>
+  <circle cx="112" cy="172" r="34" fill="#ffffff"/>
+  <circle cx="248" cy="172" r="34" fill="#ffffff"/>
+  <path d="M180 126 L146 186 L214 186 Z" fill="#ffffff"/>
+  <text x="70" y="275" fill="#111111" font-family="Segoe UI, Arial, sans-serif" font-size="74" font-weight="700" letter-spacing="2">TRICODE</text>
+  <text x="198" y="325" fill="#111111" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="400" letter-spacing="6">AI</text>
+</svg>
