@@ -106,9 +106,14 @@ const STORED_IMAGE_TIMEOUT_MS = Math.max(
   3000,
   Number(process.env.STORED_IMAGE_TIMEOUT_MS || 15000),
 );
-const STORE_GENERATED_IMAGES =
-  String(process.env.STORE_GENERATED_IMAGES || "true").toLowerCase() !==
-  "false";
+const STORE_GENERATED_IMAGES_RAW = String(
+  process.env.STORE_GENERATED_IMAGES || "",
+)
+  .trim()
+  .toLowerCase();
+const STORE_GENERATED_IMAGES = STORE_GENERATED_IMAGES_RAW
+  ? ["true", "1", "yes", "on"].includes(STORE_GENERATED_IMAGES_RAW)
+  : process.env.NODE_ENV !== "production";
 const MAX_FILE_CHARS = Math.max(
   1000,
   Number(process.env.MAX_CHAT_FILE_CHARS || 12000),
@@ -2178,7 +2183,10 @@ function buildGeneratedImagesMarkdown(prompt, count = 4) {
     return `${pollinationsBase}/${safePrompt}?${params.toString()}`;
   });
 
-  const markdown = `Generated ${urls.length} image(s) for: **${prompt}**`;
+  const images = urls
+    .map((url, i) => `![Generated image ${i + 1}](${mdUrl(url)})`)
+    .join("\n\n");
+  const markdown = `Generated ${urls.length} image(s) for: **${prompt}**\n\n${images}`;
 
   return { markdown, urls };
 }
@@ -2278,7 +2286,13 @@ export default withAuth(async function handler(req, res) {
     };
   }
   const projectMode = isProjectBuildRequest(parsed.prompt || message);
-  const wantsStream = Boolean(stream) && !projectMode;
+  // Streaming is great for long text replies, but it's unreliable for media payloads
+  // on some serverless hosts. Use JSON responses for /image and /video.
+  const wantsStream =
+    Boolean(stream) &&
+    !projectMode &&
+    parsed.mode !== "image" &&
+    parsed.mode !== "video";
   if (!parsed.prompt && cleanedAttachments.length === 0) {
     return res.status(400).json({ message: "Message is empty" });
   }
