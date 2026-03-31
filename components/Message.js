@@ -109,6 +109,17 @@ export default function Message({
   const normalizedContent =
     !isUser && typeof content === "string"
       ? content
+          // Some older deployments returned Pollinations URLs on `gen.pollinations.ai`,
+          // which now often require an API key and fail with 401. Rewrite to the free
+          // `image.pollinations.ai` endpoint so images render in production.
+          .replace(
+            /https?:\/\/gen\.pollinations\.ai\/image\//gi,
+            "https://image.pollinations.ai/prompt/",
+          )
+          .replace(
+            /https?:\/\/gen\.pollinations\.ai\/prompt\//gi,
+            "https://image.pollinations.ai/prompt/",
+          )
           .split("\n")
           .map((line) => {
             const url = line.trim();

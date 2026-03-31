@@ -15,13 +15,15 @@ In Vercel:
 - Output: default (Next.js)
 
 Node.js:
-- Use Node.js `>=20.16.0` (required by `pdf-parse` used in `/api/chat` attachments)
+- Use Node.js `^20.16.0` (Next.js + `pdf-parse` compatibility)
 
 ## 3) Add env vars
 Use values from `.env.production.example`.
 Important:
 - `NEXT_PUBLIC_URL` must be your Vercel URL (https://...vercel.app)
 - `MONGODB_URI` must be Atlas connection string
+- For free image generation, set `POLLINATIONS_BASE_URL=https://image.pollinations.ai` (do not use `gen.pollinations.ai` unless you also provide an API key).
+- If you want OTP shown on the `/login` screen in production, set `SHOW_DEV_CODE=true` (disable this later for security).
 
 ## 4) MongoDB Atlas
 - Create free M0 cluster
