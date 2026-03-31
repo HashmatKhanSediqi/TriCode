@@ -1665,17 +1665,21 @@ function normalizeMediaPrompt(prompt) {
 function resolvePollinationsImageBase() {
   const configured = String(process.env.POLLINATIONS_BASE_URL || "").trim();
   const pollinationsKey = String(process.env.POLLINATIONS_API_KEY || "").trim();
-  // Default to the free, unauthenticated endpoint.
-  // `gen.pollinations.ai` requires a key (401 otherwise) which commonly breaks
-  // fresh Vercel deployments where env vars are not configured yet.
-  let base = configured || "https://image.pollinations.ai";
+  // Prefer the free, unauthenticated endpoint when no key is configured.
+  // Some Pollinations hosts (e.g. `gen.pollinations.ai`) return 401 without a key.
+  const hasKey = Boolean(pollinationsKey);
+  let base = configured;
+  if (!hasKey) {
+    if (!/^https?:\/\/image\.pollinations\.ai(\/|$)/i.test(base)) {
+      base = "https://image.pollinations.ai";
+    }
+  } else if (!base) {
+    base = "https://gen.pollinations.ai";
+  }
   base = base.replace(/\/+$/, "");
 
   if (/^https?:\/\/enter\.pollinations\.ai$/i.test(base)) {
-    base = "https://image.pollinations.ai";
-  }
-  if (!pollinationsKey && /^https?:\/\/gen\.pollinations\.ai(\/|$)/i.test(base)) {
-    base = "https://image.pollinations.ai";
+    base = hasKey ? "https://gen.pollinations.ai" : "https://image.pollinations.ai";
   }
 
   try {
