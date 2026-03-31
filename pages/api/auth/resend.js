@@ -13,6 +13,7 @@ import { enqueueOtpEmail } from "../../../lib/emailQueue";
 import { enforceRouteRateLimit, getClientIp } from "../../../lib/rateLimit";
 import { logSecurityEvent } from "../../../lib/security-log";
 import { getSystemConfig } from "../../../lib/system";
+import { shouldShowDevCode } from "../../../lib/env";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -103,6 +104,11 @@ export default async function handler(req, res) {
     }
 
     const code = generateOtpCode();
+    const showDevCode = shouldShowDevCode();
+    if (showDevCode) {
+      console.log(`[DEV] OTP resend for ${user.email}: ${code}`);
+    }
+
     user.verifyCodeHash = hashOtp(user.email, code, "user-login");
     user.verifyExpiry = new Date(Date.now() + OTP_TTL_MS);
     user.verifyAttempts = 0;
@@ -133,9 +139,11 @@ export default async function handler(req, res) {
         });
       }
 
-      return res.status(503).json({
-        message: "Unable to deliver verification code right now. Please check email settings.",
-      });
+      if (!showDevCode) {
+        return res.status(503).json({
+          message: "Unable to deliver verification code right now. Please check email settings.",
+        });
+      }
     }
 
     issueUserPreauthCookie(res, {
@@ -154,6 +162,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       message: "If the request is valid, a new code has been sent.",
       emailSent,
+      ...(showDevCode ? { devCode: code } : {}),
     });
   } catch (error) {
     console.error("auth/resend error:", error);

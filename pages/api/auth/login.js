@@ -14,6 +14,7 @@ import { enforceRouteRateLimit } from "../../../lib/rateLimit";
 import { logSecurityEvent } from "../../../lib/security-log";
 import { normalizeEmail } from "../../../lib/validation";
 import { getSystemConfig } from "../../../lib/system";
+import { shouldShowDevCode } from "../../../lib/env";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -67,7 +68,8 @@ export default async function handler(req, res) {
       return res.status(403).json({ message: "User login is disabled by admin." });
     }
 
-    let user = await User.findOne({ email });
+    const candidates = await User.find({ email }).sort({ createdAt: -1 }).limit(5);
+    let user = candidates[0] || null;
 
     if (!user) {
       await logSecurityEvent(req, {
@@ -79,18 +81,42 @@ export default async function handler(req, res) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const isLocked = user.loginLockUntil && new Date(user.loginLockUntil).getTime() > Date.now();
-    if (isLocked) {
+    if (candidates.length > 1) {
+      await logSecurityEvent(req, {
+        eventType: "auth.login.duplicate_email",
+        status: "warn",
+        email,
+        metadata: { count: candidates.length },
+      });
+    }
+
+    const lockNow = Date.now();
+    const lockedUser = candidates.find(
+      (candidate) =>
+        candidate.loginLockUntil &&
+        new Date(candidate.loginLockUntil).getTime() > lockNow,
+    );
+    if (lockedUser) {
       await logSecurityEvent(req, {
         eventType: "auth.login.locked",
         status: "warn",
-        userId: user._id,
-        email: user.email,
+        userId: lockedUser._id,
+        email: lockedUser.email,
       });
       return res.status(429).json({ message: "Too many attempts. Please try again later." });
     }
 
-    const authResult = await comparePassword(password, user.password);
+    let authResult = await comparePassword(password, user.password);
+    if (!authResult.valid && candidates.length > 1) {
+      for (const candidate of candidates.slice(1)) {
+        const candidateAuth = await comparePassword(password, candidate.password);
+        if (candidateAuth.valid) {
+          user = candidate;
+          authResult = candidateAuth;
+          break;
+        }
+      }
+    }
     if (!authResult.valid) {
       const attempts = Number(user.failedLoginAttempts || 0) + 1;
       const updates = { failedLoginAttempts: attempts };
@@ -142,6 +168,11 @@ export default async function handler(req, res) {
 
     const otpCode = generateOtpCode();
     const verifyCodeHash = hashOtp(user.email, otpCode, "user-login");
+    const showDevCode = shouldShowDevCode();
+
+    if (showDevCode) {
+      console.log(`[DEV] OTP for ${user.email}: ${otpCode}`);
+    }
 
     if (authResult.needsUpgrade) {
       user.password = await hashPassword(password);
@@ -180,9 +211,11 @@ export default async function handler(req, res) {
         });
       }
 
-      return res.status(503).json({
-        message: "Unable to deliver verification code right now. Please check email settings.",
-      });
+      if (!showDevCode) {
+        return res.status(503).json({
+          message: "Unable to deliver verification code right now. Please check email settings.",
+        });
+      }
     }
 
     clearUserAuthCookies(res);
@@ -202,6 +235,7 @@ export default async function handler(req, res) {
     return res.status(200).json({
       ...safeUserResponse(),
       emailSent,
+      ...(showDevCode ? { devCode: otpCode } : {}),
     });
   } catch (error) {
     console.error("auth/login error:", error);

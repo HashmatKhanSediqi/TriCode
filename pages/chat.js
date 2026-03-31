@@ -1151,20 +1151,30 @@ export default function Chat() {
       });
 
       if (!res.ok) {
-        let data = {};
+        let data = null;
         try {
-          data = await res.json();
+          data = await res.clone().json();
         } catch {}
-        if (res.status === 401 && (data.message || "") === "Unauthorized") {
+
+        if (res.status === 401 && (data?.message || "") === "Unauthorized") {
           router.push("/login");
           return;
         }
+
+        const contentType = res.headers.get("content-type") || "";
+        const serverMessage = String(data?.message || "").trim();
+        const displayMessage =
+          serverMessage ||
+          (contentType.includes("application/json")
+            ? ""
+            : `${t.errorShort} (${res.status})`);
+
         setMessages((p) => [
           ...p.filter((m) => m._id !== tempId),
           {
             _id: "e_" + Date.now(),
             role: "assistant",
-            content: `⚠️ ${data.message || t.errorShort}`,
+            content: `⚠️ ${displayMessage || t.errorShort}`,
             createdAt: new Date(),
           },
         ]);

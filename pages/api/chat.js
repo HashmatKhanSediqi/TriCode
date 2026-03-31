@@ -14,14 +14,28 @@ import {
   extractCodeFiles,
 } from "../../lib/packager";
 import axios from "axios";
-import AdmZip from "adm-zip";
-import pdfParse from "pdf-parse";
 import mongoose from "mongoose";
 import { z } from "zod";
 
 export const config = {
-  api: { bodyParser: { sizeLimit: process.env.MAX_CHAT_BODY_SIZE || "64mb" } },
+  api: { bodyParser: { sizeLimit: "64mb" } },
 };
+
+let admZipPromise = null;
+async function getAdmZip() {
+  if (!admZipPromise) {
+    admZipPromise = import("adm-zip").then((m) => m.default || m);
+  }
+  return admZipPromise;
+}
+
+let pdfParsePromise = null;
+async function getPdfParse() {
+  if (!pdfParsePromise) {
+    pdfParsePromise = import("pdf-parse").then((m) => m.default || m);
+  }
+  return pdfParsePromise;
+}
 
 const SYSTEM_PROMPTS = {
   fa: "You are an expert AI programming assistant. Always answer in Dari (Persian Dari). Use markdown and give practical code. When modifying files, include filename hints in code fences (e.g. ```js path=src/app.js).",
@@ -877,6 +891,7 @@ function isZipAttachment(attachment, parsedMime) {
 
 async function extractTextFromZip(buffer, maxChars = MAX_FILE_CHARS) {
   try {
+    const AdmZip = await getAdmZip();
     const zip = new AdmZip(buffer);
     const entries = zip.getEntries().filter((e) => !e.isDirectory);
     let totalBytes = 0;
@@ -920,6 +935,7 @@ async function extractTextFromAttachment(
 
   if (isPdfAttachment(attachment, parsed.mimeType)) {
     try {
+      const pdfParse = await getPdfParse();
       const pdf = await pdfParse(parsed.buffer);
       const text = String(pdf?.text || "")
         .trim()
@@ -1648,11 +1664,18 @@ function normalizeMediaPrompt(prompt) {
 
 function resolvePollinationsImageBase() {
   const configured = String(process.env.POLLINATIONS_BASE_URL || "").trim();
-  let base = configured || "https://gen.pollinations.ai";
+  const pollinationsKey = String(process.env.POLLINATIONS_API_KEY || "").trim();
+  // Default to the free, unauthenticated endpoint.
+  // `gen.pollinations.ai` requires a key (401 otherwise) which commonly breaks
+  // fresh Vercel deployments where env vars are not configured yet.
+  let base = configured || "https://image.pollinations.ai";
   base = base.replace(/\/+$/, "");
 
   if (/^https?:\/\/enter\.pollinations\.ai$/i.test(base)) {
-    base = "https://gen.pollinations.ai";
+    base = "https://image.pollinations.ai";
+  }
+  if (!pollinationsKey && /^https?:\/\/gen\.pollinations\.ai(\/|$)/i.test(base)) {
+    base = "https://image.pollinations.ai";
   }
 
   try {
@@ -1663,7 +1686,7 @@ function resolvePollinationsImageBase() {
     if (host === "image.pollinations.ai") return `${base}/prompt`;
     return `${base}/image`;
   } catch {
-    return "https://gen.pollinations.ai/image";
+    return "https://image.pollinations.ai/prompt";
   }
 }
 

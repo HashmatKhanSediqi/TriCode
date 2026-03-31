@@ -8,8 +8,16 @@ import { verifyCaptcha } from "../../../lib/captcha";
 import { deriveNameFromEmail, validateRegisterPayload } from "../../../lib/validation";
 import { getSystemConfig } from "../../../lib/system";
 
-const GENERIC_REGISTER_RESPONSE = {
-  message: "If the request is valid, the account is ready for sign-in.",
+const REGISTER_SUCCESS_RESPONSE = {
+  message: "Registration successful. Please login.",
+};
+
+const REGISTER_DUPLICATE_RESPONSE = {
+  message: "This email is already registered. Please login instead.",
+};
+
+const REGISTER_INVALID_RESPONSE = {
+  message: "Invalid registration details.",
 };
 
 export default async function handler(req, res) {
@@ -39,7 +47,7 @@ export default async function handler(req, res) {
         status: "warn",
         email,
       });
-      return res.status(200).json(GENERIC_REGISTER_RESPONSE);
+      return res.status(400).json(REGISTER_INVALID_RESPONSE);
     }
 
     const { name, password, captchaToken, email: parsedEmail } = parsed.data;
@@ -79,7 +87,7 @@ export default async function handler(req, res) {
         status: "warn",
         email: safeEmail,
       });
-      return res.status(200).json(GENERIC_REGISTER_RESPONSE);
+      return res.status(409).json(REGISTER_DUPLICATE_RESPONSE);
     }
 
     const passwordHash = await hashPassword(password);
@@ -98,10 +106,10 @@ export default async function handler(req, res) {
       email: safeEmail,
     });
 
-    return res.status(200).json(GENERIC_REGISTER_RESPONSE);
+    return res.status(201).json(REGISTER_SUCCESS_RESPONSE);
   } catch (error) {
     if (error?.code === 11000) {
-      return res.status(200).json(GENERIC_REGISTER_RESPONSE);
+      return res.status(409).json(REGISTER_DUPLICATE_RESPONSE);
     }
 
     console.error("auth/register error:", error);

@@ -14,6 +14,9 @@ In Vercel:
 - Build Command: `npm run build`
 - Output: default (Next.js)
 
+Node.js:
+- Use Node.js `>=20.16.0` (required by `pdf-parse` used in `/api/chat` attachments)
+
 ## 3) Add env vars
 Use values from `.env.production.example`.
 Important:

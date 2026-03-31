@@ -41,6 +41,7 @@ const UI_TEXT = {
     loginFailed: "در حال حاضر ورود ممکن نیست.",
     networkError: "خطای شبکه. لطفاً دوباره تلاش کنید.",
     maskEmail: "ایمیل شما",
+    devCodeLabel: "کد توسعه",
   },
   ps: {
     title: "ښه راغلاست",
@@ -75,6 +76,7 @@ const UI_TEXT = {
     loginFailed: "اوس مهال ننوتل ممکن نه دي.",
     networkError: "د شبکې خطا. بیا هڅه وکړئ.",
     maskEmail: "ستاسو ایمیل",
+    devCodeLabel: "د ډیولپ کوډ",
   },
   en: {
     title: "Welcome Back",
@@ -109,6 +111,7 @@ const UI_TEXT = {
     loginFailed: "Unable to login right now.",
     networkError: "Network error. Please try again.",
     maskEmail: "your email",
+    devCodeLabel: "Dev code",
   },
 };
 
@@ -199,6 +202,7 @@ export default function LoginPage() {
   const [expired, setExpired] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [maskedEmail, setMaskedEmail] = useState("");
+  const [devCode, setDevCode] = useState("");
   const [verifySeed, setVerifySeed] = useState(0);
 
   const t = UI_TEXT[lang] || UI_TEXT.en;
@@ -291,6 +295,7 @@ export default function LoginPage() {
 
       setMaskedEmail(maskEmail(email, t.maskEmail));
       setEmailSent(data?.emailSent !== false);
+      setDevCode(String(data?.devCode || ""));
       resetVerifyState();
       setStage("verify");
 
@@ -354,6 +359,7 @@ export default function LoginPage() {
       }
 
       setEmailSent(data?.emailSent !== false);
+      setDevCode(String(data?.devCode || ""));
       resetVerifyState();
       setResendIsError(false);
       setResendMessage(t.resendSent);
@@ -589,6 +595,20 @@ export default function LoginPage() {
               </div>
             )}
 
+            {devCode && !expired && (
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: 12,
+                  color: "#86efac",
+                  direction: "ltr",
+                }}
+              >
+                <span style={{ opacity: 0.85 }}>{t.devCodeLabel}:</span>{" "}
+                <strong style={{ letterSpacing: 2 }}>{devCode}</strong>
+              </div>
+            )}
+
             {expired && (
               <div
                 style={{
@@ -727,6 +747,7 @@ export default function LoginPage() {
                 onClick={() => {
                   setStage("login");
                   setVerifyError("");
+                  setDevCode("");
                 }}
                 style={{
                   border: "none",
