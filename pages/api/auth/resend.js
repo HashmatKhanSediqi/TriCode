@@ -13,7 +13,7 @@ import { enqueueOtpEmail } from "../../../lib/emailQueue";
 import { enforceRouteRateLimit, getClientIp } from "../../../lib/rateLimit";
 import { logSecurityEvent } from "../../../lib/security-log";
 import { getSystemConfig } from "../../../lib/system";
-import { shouldShowDevCode } from "../../../lib/env";
+import { isSmtpConfigured, shouldShowDevCode } from "../../../lib/env";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
@@ -104,7 +104,8 @@ export default async function handler(req, res) {
     }
 
     const code = generateOtpCode();
-    const showDevCode = shouldShowDevCode();
+    const smtpConfigured = isSmtpConfigured();
+    const showDevCode = shouldShowDevCode() || !smtpConfigured;
     if (showDevCode) {
       console.log(`[DEV] OTP resend for ${user.email}: ${code}`);
     }
@@ -115,34 +116,32 @@ export default async function handler(req, res) {
     user.verifyLastSentAt = new Date();
     await user.save();
 
-    let emailSent = true;
-    try {
-      await enqueueOtpEmail({
-        to: user.email,
-        name: user.name,
-        code,
-        purpose: "user",
-      });
-    } catch (emailError) {
-      emailSent = false;
-      await logSecurityEvent(req, {
-        eventType: "auth.otp.delivery_failed",
-        status: "warn",
-        userId: user._id,
-        email: user.email,
-        metadata: { message: String(emailError?.message || emailError || "") },
-      });
-
-      if (process.env.NODE_ENV === "production") {
-        return res.status(503).json({
-          message: "Unable to deliver verification code right now. Please try again later.",
+    let emailSent = false;
+    if (smtpConfigured) {
+      emailSent = true;
+      try {
+        await enqueueOtpEmail({
+          to: user.email,
+          name: user.name,
+          code,
+          purpose: "user",
         });
-      }
-
-      if (!showDevCode) {
-        return res.status(503).json({
-          message: "Unable to deliver verification code right now. Please check email settings.",
+      } catch (emailError) {
+        emailSent = false;
+        await logSecurityEvent(req, {
+          eventType: "auth.otp.delivery_failed",
+          status: "warn",
+          userId: user._id,
+          email: user.email,
+          metadata: { message: String(emailError?.message || emailError || "") },
         });
+
+        if (!showDevCode) {
+          return res.status(503).json({
+            message:
+              "Unable to deliver verification code right now. Please check email settings.",
+          });
+        }
       }
     }
 

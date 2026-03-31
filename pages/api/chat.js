@@ -1664,31 +1664,22 @@ function normalizeMediaPrompt(prompt) {
 
 function resolvePollinationsImageBase() {
   const configured = String(process.env.POLLINATIONS_BASE_URL || "").trim();
-  const pollinationsKey = String(process.env.POLLINATIONS_API_KEY || "").trim();
-  // Prefer the free, unauthenticated endpoint when no key is configured.
-  // Some Pollinations hosts (e.g. `gen.pollinations.ai`) return 401 without a key.
-  const hasKey = Boolean(pollinationsKey);
-  let base = configured;
-  if (!hasKey) {
-    if (!/^https?:\/\/image\.pollinations\.ai(\/|$)/i.test(base)) {
-      base = "https://image.pollinations.ai";
-    }
-  } else if (!base) {
-    base = "https://gen.pollinations.ai";
-  }
+  // Use the free, unauthenticated host by default.
+  // Some Pollinations hosts (e.g. `gen.pollinations.ai`) require an API key and return 401,
+  // which breaks Vercel deployments when env vars are missing/misconfigured.
+  let base = configured || "https://image.pollinations.ai";
   base = base.replace(/\/+$/, "");
-
-  if (/^https?:\/\/enter\.pollinations\.ai$/i.test(base)) {
-    base = hasKey ? "https://gen.pollinations.ai" : "https://image.pollinations.ai";
-  }
 
   try {
     const parsed = new URL(base);
-    const path = parsed.pathname.replace(/\/+$/, "");
     const host = parsed.hostname.toLowerCase();
-    if (/\/(image|prompt)$/i.test(path)) return base;
-    if (host === "image.pollinations.ai") return `${base}/prompt`;
-    return `${base}/image`;
+    if (host !== "image.pollinations.ai") {
+      return "https://image.pollinations.ai/prompt";
+    }
+
+    const path = parsed.pathname.replace(/\/+$/, "");
+    if (path.toLowerCase().endsWith("/prompt")) return parsed.toString();
+    return `${parsed.origin}/prompt`;
   } catch {
     return "https://image.pollinations.ai/prompt";
   }
@@ -2171,8 +2162,7 @@ function buildGeneratedImagesMarkdown(prompt, count = 4) {
   // Pollinations seed must fit signed 32-bit int (<= 2147483647)
   const seedBase = Math.floor(Date.now() / 1000);
 
-  // Use Pollinations API with the configured URL and API key
-  const pollinationsKey = (process.env.POLLINATIONS_API_KEY || "").trim();
+  // Use Pollinations free endpoint (no key required).
   const pollinationsBase = resolvePollinationsImageBase();
   const pollinationsModel = getPollinationsImageModel();
 
@@ -2185,7 +2175,6 @@ function buildGeneratedImagesMarkdown(prompt, count = 4) {
       enhance: "true",
       model: pollinationsModel,
     });
-    if (pollinationsKey) params.set("key", pollinationsKey);
     return `${pollinationsBase}/${safePrompt}?${params.toString()}`;
   });
 
